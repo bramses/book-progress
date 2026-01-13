@@ -1,12 +1,18 @@
 {
   "name": "book-progress",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "book-progress.js",
   "scripts": {
+    "start": "node book-progress.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "Book progress tracker with Ghost integration",
+  "dependencies": {
+    "@tryghost/admin-api": "^1.13.12",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  }
 }

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Notes</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .book-info h1 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .book-info p {
+      color: #666;
+      font-size: 16px;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5a6fd6;
+    }
+
+    .btn-secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+
+    .btn-secondary:hover {
+      background: #d0d0d0;
+    }
+
+    .btn-success {
+      background: #48bb78;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #38a169;
+    }
+
+    .btn-danger {
+      background: #e53e3e;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #c53030;
+    }
+
+    .notes-area {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .textarea-container {
+      position: relative;
+    }
+
+    #notes-textarea {
+      width: 100%;
+      min-height: 300px;
+      padding: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 16px;
+      line-height: 1.6;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    #notes-textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .mention-dropdown {
+      position: absolute;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      z-index: 100;
+    }
+
+    .mention-item {
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+
+    .mention-item:hover {
+      background: #f0f0f0;
+    }
+
+    .mention-item.selected {
+      background: #667eea;
+      color: white;
+    }
+
+    .updates-list {
+      margin-top: 20px;
+    }
+
+    .updates-list h3 {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .update-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      background: #f8f8f8;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .update-item-info {
+      flex: 1;
+    }
+
+    .update-item-name {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .update-item-book {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .submit-section {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    /* Autocomplete styles */
+    .autocomplete-container {
+      position: relative;
+    }
+
+    .autocomplete-results {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      z-index: 100;
+    }
+
+    .autocomplete-results.active {
+      display: block;
+    }
+
+    .autocomplete-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+      background: #f8f8f8;
+    }
+
+    .autocomplete-item-name {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .autocomplete-item-context {
+      font-size: 12px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    /* Selected page info */
+    .selected-page-info {
+      background: #e8f4fd;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .selected-page-info.active {
+      display: block;
+    }
+
+    .selected-page-name {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .selected-page-context {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .success-message {
+      background: #c6f6d5;
+      color: #276749;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .success-message.active {
+      display: block;
+    }
+
+    .error-message {
+      background: #fed7d7;
+      color: #c53030;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .error-message.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="book-info">
+        <h1 id="book-title">Loading...</h1>
+        <p id="book-author"></p>
+      </div>
+      <div class="action-buttons">
+        <button class="btn btn-primary" onclick="openCreateModal()">Create New Page</button>
+        <button class="btn btn-secondary" onclick="openAddExistingModal()">Add to Existing</button>
+      </div>
+    </div>
+
+    <div class="notes-area">
+      <div class="textarea-container">
+        <textarea id="notes-textarea" placeholder="Write your notes here... Use @ to mention characters or settings (e.g., @George Washington)"></textarea>
+        <div class="mention-dropdown" id="mention-dropdown"></div>
+      </div>
+
+      <div class="updates-list" id="updates-list" style="display: none;">
+        <h3>Updates to Ghost Pages:</h3>
+        <div id="updates-container"></div>
+      </div>
+
+      <div class="submit-section">
+        <button class="btn btn-secondary" onclick="skipAndClose()">Skip</button>
+        <button class="btn btn-success" onclick="submitNotes()">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create New Page Modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <h2>Create New Page</h2>
+      <div class="success-message" id="create-success"></div>
+      <div class="error-message" id="create-error"></div>
+      <div class="form-group">
+        <label for="create-book-title">Book Title</label>
+        <input type="text" id="create-book-title">
+      </div>
+      <div class="form-group">
+        <label for="create-author">Author</label>
+        <input type="text" id="create-author">
+      </div>
+      <div class="form-group">
+        <label for="create-character">Character Name or Setting</label>
+        <input type="text" id="create-character" placeholder="e.g., George Washington or Valley Forge">
+      </div>
+      <div class="form-group">
+        <label for="create-content">Initial Content</label>
+        <textarea id="create-content" rows="4" placeholder="Your thoughts about this character or setting..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="createPage()">Create Page</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add to Existing Modal -->
+  <div class="modal-overlay" id="add-existing-modal">
+    <div class="modal">
+      <h2>Add to Existing Page</h2>
+      <div class="success-message" id="add-success"></div>
+      <div class="error-message" id="add-error"></div>
+      <div class="form-group">
+        <label for="search-pages">Search for a page</label>
+        <div class="autocomplete-container">
+          <input type="text" id="search-pages" placeholder="Start typing to search..." oninput="searchPages()">
+          <div class="autocomplete-results" id="search-results"></div>
+        </div>
+      </div>
+      <div class="selected-page-info" id="selected-page-info">
+        <div class="selected-page-name" id="selected-page-name"></div>
+        <div class="selected-page-context" id="selected-page-context"></div>
+      </div>
+      <div class="form-group" id="add-content-group" style="display: none;">
+        <label for="add-content">New Content</label>
+        <textarea id="add-content" rows="4" placeholder="Your new thoughts to add to this page..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeAddExistingModal()">Cancel</button>
+        <button class="btn btn-primary" id="add-to-page-btn" onclick="addToPage()" disabled>Add to Page</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/notes.js"></script>
+</body>
+</html>

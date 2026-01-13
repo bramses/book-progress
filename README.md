@@ -4,6 +4,8 @@
 
 A Node.js CLI tool that tracks daily reading progress across multiple books and generates an animated HTML visualization.
 
+cat book-progress.html |pbcopy
+
 ## What it does
 
 - Reads book data from `books.json` (title, author, cover image)
