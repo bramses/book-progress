@@ -83,7 +83,7 @@ function parsePageTags(page) {
 }
 
 // Create a new page in Ghost
-async function createPage({ characterOrSetting, bookTitle, author, content }) {
+async function createPage({ characterOrSetting, bookTitle, author, content, isHtml = false }) {
   const ghostApi = getApi();
   if (!ghostApi) {
     throw new Error('Ghost API not configured');
@@ -95,8 +95,15 @@ async function createPage({ characterOrSetting, bookTitle, author, content }) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
-  // Escape content and wrap in HTML
-  const htmlContent = `<p>${escapeHtml(content)}</p>`;
+  // Generate the date-based link (same as updatePage)
+  const now = new Date();
+  const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getFullYear()).slice(-2)}`;
+  const dateLink = `https://www.bramadams.dev/book-progress-${dateStr}/`;
+
+  // If content is already HTML (pre-processed with @mentions), use it directly
+  // Otherwise escape it
+  const processedContent = isHtml ? content : escapeHtml(content);
+  const htmlContent = `<h2><a href="${dateLink}">${dateStr}</a></h2>\n<p>${processedContent}</p>`;
 
   try {
     // Use source: 'html' to tell Ghost to convert HTML to internal format
@@ -123,7 +130,7 @@ async function createPage({ characterOrSetting, bookTitle, author, content }) {
 }
 
 // Update an existing page by appending content
-async function updatePage({ pageId, content }) {
+async function updatePage({ pageId, content, isHtml = false }) {
   const ghostApi = getApi();
   if (!ghostApi) {
     throw new Error('Ghost API not configured');
@@ -138,9 +145,13 @@ async function updatePage({ pageId, content }) {
     const dateStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getFullYear()).slice(-2)}`;
     const dateLink = `https://www.bramadams.dev/book-progress-${dateStr}/`;
 
+    // If content is already HTML (pre-processed with @mentions), use it directly
+    // Otherwise escape it
+    const processedContent = isHtml ? content : escapeHtml(content);
+
     // Append new content under an H2 with date link
     const existingHtml = existingPage.html || '';
-    const newHtml = existingHtml + `\n<h2><a href="${dateLink}">${dateStr}</a></h2>\n<p>${escapeHtml(content)}</p>`;
+    const newHtml = existingHtml + `\n<h2><a href="${dateLink}">${dateStr}</a></h2>\n<p>${processedContent}</p>`;
 
     console.log('Updating page with HTML:', newHtml);
 
@@ -167,13 +178,19 @@ async function searchTags(query) {
   }
 
   try {
+    // Fetch tags with a high limit to get all
     const tags = await ghostApi.tags.browse({
-      limit: 'all'
+      limit: 1000,
+      order: 'name ASC'
     });
+
+    console.log(`Fetched ${tags.length} tags, first few:`, tags.slice(0, 5).map(t => t.name));
 
     if (query && query.trim()) {
       const lowerQuery = query.toLowerCase();
-      return tags.filter(tag => tag.name.toLowerCase().includes(lowerQuery));
+      const filtered = tags.filter(tag => tag.name.toLowerCase().includes(lowerQuery));
+      console.log(`Filtered to ${filtered.length} tags for query "${query}"`);
+      return filtered;
     }
 
     return tags;

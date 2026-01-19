@@ -39,123 +39,197 @@ async function loadBookData() {
   }
 }
 
-// @ Mention Detection
+// @ Mention Detection - shared state
+let activeTextarea = null;
+let activeDropdown = null;
+let mentionSelectedIndex = -1;
+let mentionCurrentResults = [];
+
+// Cache all tags to avoid repeated API calls (per session)
+let allTagsCache = null;
+let tagsCachePromise = null;
+
+async function fetchAllTags() {
+  // If already fetching, wait for that promise
+  if (tagsCachePromise) return tagsCachePromise;
+
+  // If cached, return cache
+  if (allTagsCache) return allTagsCache;
+
+  // Fetch fresh
+  tagsCachePromise = (async () => {
+    try {
+      console.log('Fetching all tags from API...');
+      const response = await fetch('/api/tags?q=');
+      const tags = await response.json();
+      console.log(`Received ${tags.length} tags from API`);
+      allTagsCache = tags;
+      return tags;
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+      return [];
+    } finally {
+      tagsCachePromise = null;
+    }
+  })();
+
+  return tagsCachePromise;
+}
+
+// Filter tags locally for faster response
+function filterTags(tags, query) {
+  if (!query) return tags;
+  const lowerQuery = query.toLowerCase();
+  return tags.filter(tag => tag.name.toLowerCase().includes(lowerQuery));
+}
+
 function setupMentionDetection() {
-  const textarea = document.getElementById('notes-textarea');
-  const dropdown = document.getElementById('mention-dropdown');
-  let mentionStartPos = -1;
-  let selectedIndex = -1;
-  let currentResults = [];
+  // Setup for main notes textarea
+  setupMentionForTextarea(
+    document.getElementById('notes-textarea'),
+    document.getElementById('mention-dropdown')
+  );
+}
+
+function setupMentionForTextarea(textarea, dropdown) {
+  if (!textarea || !dropdown) return;
 
   textarea.addEventListener('input', async (e) => {
-    const text = textarea.value;
-    const cursorPos = textarea.selectionStart;
-
-    // Find @ symbol before cursor
-    const textBeforeCursor = text.substring(0, cursorPos);
-    const lastAtPos = textBeforeCursor.lastIndexOf('@');
-
-    if (lastAtPos !== -1) {
-      const textAfterAt = textBeforeCursor.substring(lastAtPos + 1);
-      // Check if there's a space after @ (mention completed)
-      if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
-        mentionStartPos = lastAtPos;
-        const query = textAfterAt;
-
-        // Search for tags
-        const response = await fetch(`/api/tags?q=${encodeURIComponent(query)}`);
-        currentResults = await response.json();
-
-        if (currentResults.length > 0) {
-          showMentionDropdown(currentResults, textarea, lastAtPos);
-          selectedIndex = -1;
-        } else {
-          hideMentionDropdown();
-        }
-        return;
-      }
-    }
-
-    hideMentionDropdown();
-    mentionStartPos = -1;
+    await handleMentionInput(textarea, dropdown);
   });
 
   textarea.addEventListener('keydown', (e) => {
-    if (dropdown.style.display !== 'block') return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      selectedIndex = Math.min(selectedIndex + 1, currentResults.length - 1);
-      updateDropdownSelection(selectedIndex);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      selectedIndex = Math.max(selectedIndex - 1, 0);
-      updateDropdownSelection(selectedIndex);
-    } else if (e.key === 'Enter' && selectedIndex >= 0) {
-      e.preventDefault();
-      selectMention(currentResults[selectedIndex]);
-    } else if (e.key === 'Escape') {
-      hideMentionDropdown();
-    }
+    handleMentionKeydown(e, textarea, dropdown);
   });
 
-  function showMentionDropdown(results, textarea, atPos) {
-    dropdown.innerHTML = results.map((tag, index) => `
-      <div class="mention-item" data-index="${index}" onclick="selectMentionByIndex(${index})">
-        ${tag.name}
-      </div>
-    `).join('');
+  // Hide dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!textarea.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+}
 
-    // Position dropdown near cursor
-    const rect = textarea.getBoundingClientRect();
-    dropdown.style.left = '16px';
-    dropdown.style.top = '60px';
-    dropdown.style.display = 'block';
+async function handleMentionInput(textarea, dropdown) {
+  const text = textarea.value;
+  const cursorPos = textarea.selectionStart;
+
+  // Find @ symbol before cursor
+  const textBeforeCursor = text.substring(0, cursorPos);
+  const lastAtPos = textBeforeCursor.lastIndexOf('@');
+
+  if (lastAtPos !== -1) {
+    const textAfterAt = textBeforeCursor.substring(lastAtPos + 1);
+    // Check if there's a space after @ (mention completed)
+    if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+      const query = textAfterAt;
+
+      // Get all tags and filter locally
+      const allTags = await fetchAllTags();
+      mentionCurrentResults = filterTags(allTags, query);
+
+      if (mentionCurrentResults.length > 0) {
+        activeTextarea = textarea;
+        activeDropdown = dropdown;
+        showMentionDropdown(mentionCurrentResults, textarea, dropdown);
+        mentionSelectedIndex = -1;
+      } else {
+        dropdown.style.display = 'none';
+      }
+      return;
+    }
   }
 
-  function updateDropdownSelection(index) {
-    const items = dropdown.querySelectorAll('.mention-item');
-    items.forEach((item, i) => {
-      item.classList.toggle('selected', i === index);
-    });
-  }
+  dropdown.style.display = 'none';
+}
 
-  window.selectMentionByIndex = (index) => {
-    selectMention(currentResults[index]);
-  };
+function handleMentionKeydown(e, textarea, dropdown) {
+  if (dropdown.style.display !== 'block') return;
 
-  function selectMention(tag) {
-    const textarea = document.getElementById('notes-textarea');
-    const text = textarea.value;
-    const cursorPos = textarea.selectionStart;
-    const textBeforeCursor = text.substring(0, cursorPos);
-    const lastAtPos = textBeforeCursor.lastIndexOf('@');
-
-    // Replace @query with @TagName
-    const newText = text.substring(0, lastAtPos) + '@' + tag.name + ' ' + text.substring(cursorPos);
-    textarea.value = newText;
-
-    // Store mention for later conversion
-    mentions.set(tag.name, tag);
-
-    // Move cursor after the mention
-    const newCursorPos = lastAtPos + tag.name.length + 2;
-    textarea.setSelectionRange(newCursorPos, newCursorPos);
-    textarea.focus();
-
-    hideMentionDropdown();
-  }
-
-  function hideMentionDropdown() {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    mentionSelectedIndex = Math.min(mentionSelectedIndex + 1, mentionCurrentResults.length - 1);
+    updateDropdownSelection(dropdown, mentionSelectedIndex);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    mentionSelectedIndex = Math.max(mentionSelectedIndex - 1, 0);
+    updateDropdownSelection(dropdown, mentionSelectedIndex);
+  } else if (e.key === 'Enter' && mentionSelectedIndex >= 0) {
+    e.preventDefault();
+    selectMention(mentionCurrentResults[mentionSelectedIndex], textarea, dropdown);
+  } else if (e.key === 'Escape') {
     dropdown.style.display = 'none';
   }
 }
+
+function showMentionDropdown(results, textarea, dropdown) {
+  dropdown.innerHTML = results.map((tag, index) => `
+    <div class="mention-item" data-index="${index}" onclick="selectMentionByIndex(${index})">
+      ${tag.name}
+    </div>
+  `).join('');
+
+  // Position dropdown relative to textarea
+  const rect = textarea.getBoundingClientRect();
+  const containerRect = textarea.parentElement.getBoundingClientRect();
+  dropdown.style.left = '0';
+  dropdown.style.top = (textarea.offsetTop + 50) + 'px';
+  dropdown.style.width = textarea.offsetWidth + 'px';
+  dropdown.style.display = 'block';
+}
+
+function updateDropdownSelection(dropdown, index) {
+  const items = dropdown.querySelectorAll('.mention-item');
+  items.forEach((item, i) => {
+    item.classList.toggle('selected', i === index);
+  });
+}
+
+window.selectMentionByIndex = (index) => {
+  if (activeTextarea && activeDropdown) {
+    selectMention(mentionCurrentResults[index], activeTextarea, activeDropdown);
+  }
+};
+
+function selectMention(tag, textarea, dropdown) {
+  const text = textarea.value;
+  const cursorPos = textarea.selectionStart;
+  const textBeforeCursor = text.substring(0, cursorPos);
+  const lastAtPos = textBeforeCursor.lastIndexOf('@');
+
+  // Replace @query with @TagName
+  const newText = text.substring(0, lastAtPos) + '@' + tag.name + ' ' + text.substring(cursorPos);
+  textarea.value = newText;
+
+  // Store mention for later conversion
+  mentions.set(tag.name, tag);
+
+  // Move cursor after the mention
+  const newCursorPos = lastAtPos + tag.name.length + 2;
+  textarea.setSelectionRange(newCursorPos, newCursorPos);
+  textarea.focus();
+
+  dropdown.style.display = 'none';
+}
+
+// Track if mention detection is setup for modal textareas
+let createMentionSetup = false;
+let addMentionSetup = false;
 
 // Create Modal
 function openCreateModal() {
   document.getElementById('create-modal').classList.add('active');
   document.getElementById('create-success').classList.remove('active');
   document.getElementById('create-error').classList.remove('active');
+
+  // Setup mention detection for create-content textarea (once)
+  if (!createMentionSetup) {
+    setupMentionForTextarea(
+      document.getElementById('create-content'),
+      document.getElementById('create-mention-dropdown')
+    );
+    createMentionSetup = true;
+  }
 }
 
 function closeCreateModal() {
@@ -168,19 +242,22 @@ async function createPage() {
   const bookTitle = document.getElementById('create-book-title').value.trim();
   const author = document.getElementById('create-author').value.trim();
   const characterOrSetting = document.getElementById('create-character').value.trim();
-  const content = document.getElementById('create-content').value.trim();
+  const rawContent = document.getElementById('create-content').value.trim();
 
-  if (!characterOrSetting || !content) {
+  if (!characterOrSetting || !rawContent) {
     document.getElementById('create-error').textContent = 'Please fill in all fields';
     document.getElementById('create-error').classList.add('active');
     return;
   }
 
+  // Process @mentions to convert them to links
+  const content = processTextWithMentions(rawContent);
+
   try {
     const response = await fetch('/api/create-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ characterOrSetting, bookTitle, author, content })
+      body: JSON.stringify({ characterOrSetting, bookTitle, author, content, isHtml: true })
     });
 
     const result = await response.json();
@@ -227,6 +304,15 @@ function openAddExistingModal() {
   document.getElementById('selected-page-info').classList.remove('active');
   document.getElementById('add-content-group').style.display = 'none';
   document.getElementById('add-to-page-btn').disabled = true;
+
+  // Setup mention detection for add-content textarea (once)
+  if (!addMentionSetup) {
+    setupMentionForTextarea(
+      document.getElementById('add-content'),
+      document.getElementById('add-mention-dropdown')
+    );
+    addMentionSetup = true;
+  }
 }
 
 function closeAddExistingModal() {
@@ -293,19 +379,22 @@ function selectPage(index) {
 async function addToPage() {
   if (!selectedPage) return;
 
-  const content = document.getElementById('add-content').value.trim();
+  const rawContent = document.getElementById('add-content').value.trim();
 
-  if (!content) {
+  if (!rawContent) {
     document.getElementById('add-error').textContent = 'Please enter content to add';
     document.getElementById('add-error').classList.add('active');
     return;
   }
 
+  // Process @mentions to convert them to links
+  const content = processTextWithMentions(rawContent);
+
   try {
     const response = await fetch('/api/update-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageId: selectedPage.id, content })
+      body: JSON.stringify({ pageId: selectedPage.id, content, isHtml: true })
     });
 
     const result = await response.json();
@@ -384,10 +473,12 @@ function processTextWithMentions(text) {
     processedText = processedText.replace(regex, `<a href="${tag.url}">${escapedName}</a>`);
   });
 
-  // Convert newlines to <br>
-  processedText = processedText.replace(/\n/g, '<br>');
+  // Split by any newlines and create separate paragraphs
+  // Ghost doesn't preserve <br> well, so use separate <p> tags
+  const lines = processedText.split(/\n/).filter(line => line.trim());
 
-  return processedText;
+  // Return as separate paragraphs (server will wrap in <p>)
+  return lines.join('</p><p>');
 }
 
 // Escape HTML for notes (different from the one used for updates)

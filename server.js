@@ -73,9 +73,9 @@ app.get('/api/tags', async (req, res) => {
 
 // Create a new Ghost page
 app.post('/api/create-page', async (req, res) => {
-  const { characterOrSetting, bookTitle, author, content } = req.body;
+  const { characterOrSetting, bookTitle, author, content, isHtml } = req.body;
 
-  console.log('Create page request:', { characterOrSetting, bookTitle, author, content });
+  console.log('Create page request:', { characterOrSetting, bookTitle, author, content, isHtml });
 
   if (!characterOrSetting || !bookTitle || !author || !content) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -86,7 +86,8 @@ app.post('/api/create-page', async (req, res) => {
       characterOrSetting,
       bookTitle,
       author,
-      content
+      content,
+      isHtml: isHtml || false
     });
     console.log('Page created successfully:', page);
     res.json({
@@ -106,14 +107,14 @@ app.post('/api/create-page', async (req, res) => {
 
 // Update an existing Ghost page
 app.post('/api/update-page', async (req, res) => {
-  const { pageId, content } = req.body;
+  const { pageId, content, isHtml } = req.body;
 
   if (!pageId || !content) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    const page = await ghostApi.updatePage({ pageId, content });
+    const page = await ghostApi.updatePage({ pageId, content, isHtml: isHtml || false });
     res.json({
       success: true,
       page: {
